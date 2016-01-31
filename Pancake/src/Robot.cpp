@@ -82,9 +82,9 @@ private:
 			//printf( "{%d},\n", gearshift);
 		}
 
-		if (this->jsR.GetRawButton(2)) {
+		if (this->jsL.GetRawButton(2)) {
 			this->ds2.Set(DoubleSolenoid::kForward);
-		} else if (this->jsR.GetRawButton(3)) {
+		} else if (this->jsL.GetRawButton(3)) {
 			this->ds2.Set(DoubleSolenoid::kReverse);
 		} else {
 			this->ds2.Set(DoubleSolenoid::kOff);
