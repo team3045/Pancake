@@ -20,7 +20,7 @@ class Robot: public IterativeRobot  {
 
 public:
 	Robot() :
-		rdF(0, 2), rdR(5, 3), jsE(2), jsL(1), jsR(0), vctR(4), vctL(1), cps(), ds1(0, 1), ds2(2, 3) {
+		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0), vctR(5), vctL(2), cps(), ds1(0, 1), ds2(2, 3) {
 	}
 
 private:
@@ -41,13 +41,13 @@ private:
 	}
 
 	void Drive() {
-		float leftInput = -1 * this->jsL.GetY();
+		float leftInput = 1 * this->jsL.GetY();
 		float rightInput = 1 * this->jsR.GetY();
 		float RightMidWheelInput = 1 * this->jsR.GetY();
-		float LeftMidWheelInput = -1 * this->jsL.GetY();
+		float LeftMidWheelInput = 1 * this->jsL.GetY();
 		this->rdF.SetLeftRightMotorOutputs(leftInput, rightInput);
 		this->rdR.SetLeftRightMotorOutputs(leftInput, rightInput);
-		this->vctR.Set(RightMidWheelInput);
+		this->vctR.Set(-1 * RightMidWheelInput);
 		this->vctL.Set(LeftMidWheelInput);
 		//this->rdF.SetLeftRightMotorOutputs(1, 1);
 		//this->rdR.SetLeftRightMotorOutputs(-1, -1);
@@ -82,9 +82,9 @@ private:
 			//printf( "{%d},\n", gearshift);
 		}
 
-		if (this->jsR.GetRawButton(2)) {
+		if (this->jsL.GetRawButton(2)) {
 			this->ds2.Set(DoubleSolenoid::kForward);
-		} else if (this->jsR.GetRawButton(3)) {
+		} else if (this->jsL.GetRawButton(3)) {
 			this->ds2.Set(DoubleSolenoid::kReverse);
 		} else {
 			this->ds2.Set(DoubleSolenoid::kOff);
