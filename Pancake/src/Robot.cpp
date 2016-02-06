@@ -1,3 +1,4 @@
+
 #include "WPILib.h"
 #include "Commands/Command.h"
 #include "Commands/ExampleCommand.h"
@@ -15,16 +16,18 @@ class Robot: public IterativeRobot  {
 	Compressor cps;
 	DoubleSolenoid ds1;
 	DoubleSolenoid ds2;
-	//DigitalInput diMaxSwitch;
+	Encoder enc;
 	//DigitalInput diMinSwitch;
+
 
 public:
 	Robot() :
-		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0), vctR(5), vctL(2), cps(), ds1(0, 1), ds2(2, 3) {
+		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0), vctR(5), vctL(2), cps(), ds1(0, 1), ds2(2, 3), enc(0, 1, false, Encoder::EncodingType::k4X){
 	}
 
 private:
 	void RobotInit() {
+		SmartDashboard::PutNumber("Encoder", -1);
 	}
 
 	void AutonomousInit() {
@@ -59,6 +62,7 @@ private:
 
 	void TeleopPeriodic() {
 		int gearshift = 0;
+		int count = enc->Get();
 		this->Drive();
 		//this->cps.Start();
 
@@ -90,11 +94,7 @@ private:
 			this->ds2.Set(DoubleSolenoid::kOff);
 		}
 
-
-
-		//printf("HelloWorld!");
-
-
+		printf("%d,\n", count);
 	}
 
 	void TestPeriodic()
