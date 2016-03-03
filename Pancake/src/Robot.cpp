@@ -17,24 +17,26 @@ class Robot: public IterativeRobot  {
 	Victor vctR;
 	Victor vctL;
 	CANTalon talS1;
-	//CANTalon talS2;
+	CANTalon talS2;
 	CANTalon talI1;
-	CANTalon talI2;
 	Compressor cps;
 	DoubleSolenoid ds1;
 	DoubleSolenoid ds2;
 	Solenoid s1;
 	Solenoid s2;
+	Solenoid SolenoidIntake;
 	Encoder lenc;
 	Encoder renc;
+	Encoder shooterenc;
+	Timer timer;
 	//DigitalInput diMinSwitch;
 	//PIDController spdcontrol;
 
 
 public:
 	Robot() :
-		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0), vctR(5), vctL(2), talS1(1), talI1(0), talI2(2), cps(), ds1(0), ds2(1), s1(2), s2(3), lenc(0, 1, false, Encoder::EncodingType::k2X),
-		renc(2, 3, false, Encoder::EncodingType::k2X){
+		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0), vctR(5), vctL(2), talS1(1), talS2(2), talI1(0), cps(), ds1(0), ds2(1), s1(2), s2(3), SolenoidIntake(4), lenc(0, 1, false, Encoder::EncodingType::k2X),
+		renc(2, 3, false, Encoder::EncodingType::k2X), shooterenc(4, 5, false, Encoder::EncodingType::k2X){
 	}
 
 private:
@@ -47,6 +49,11 @@ private:
 		lenc.SetReverseDirection(false);
 		lenc.SetSamplesToAverage(7);
 		renc.Reset();
+		renc.SetMaxPeriod(.1);
+		renc.SetMinRate(10);
+		renc.SetDistancePerPulse(2.8125);
+		renc.SetReverseDirection(false);
+		renc.SetSamplesToAverage(7);
 		renc.SetMaxPeriod(.1);
 		renc.SetMinRate(10);
 		renc.SetDistancePerPulse(2.8125);
@@ -84,6 +91,7 @@ private:
 		float rightInput;
 		double lcount = this->lenc.GetDistance();
 		double rcount = this->renc.GetDistance();
+		double shooterwheels = this->shooterenc.GetDistance();
 
 		if (index == 0) {
 			if (rcount <= 4000 && lcount <= 4000) {
@@ -93,10 +101,43 @@ private:
 				vctL.Set(1);
 			}
 		} else if (index == 1) {
-
+			if () {  //use vision code to define if statement
+				s1.Set(true);
+				while (shooterwheels < 1200) {
+					talS1.Set(-1);
+					talS2.Set(1);
+					if (shooterwheels > 200) {
+						s2.Set(true);
+					}
+				}
+			}
 		} else if (index == 2) {
+			s1.Set(true);
+			while (shooterwheels < 1200) {
+				talS1.Set(-1);
+				/talS2.Set(1);
+								if (shooterwheels > 200) {
+									s2.Set(true);
+								}
+							}
 		} else if (index == 3) {
 		} else if (index == 4) {
+			if (rcount <= 4000 && lcount <= 4000) {
+				rdF.SetLeftRightMotorOutputs(1, -1);
+				rdR.SetLeftRightMotorOutputs(1, -1);
+				vctR.Set(-1);
+				vctL.Set(1);
+			}
+			if () {  //use vision code to define if statement
+				s1.Set(true);
+				while (shooterwheels < 1200) {
+					talS1.Set(-1);
+					talS2.Set(1);
+					if (shooterwheels > 200) {
+						s2.Set(true);
+					}
+				}
+			}
 		}
 	}
 
@@ -121,52 +162,86 @@ private:
 	}
 
 	void Shooter() {
+		float time = timer.Get();
 		float shooterInput = 1 * jsE.GetY();
 		talI1.Set(shooterInput);
-		talI2.Set(shooterInput);
-		 /*
-		 *if (jsE.GetRawButton(3)) {
-		 *	s1.Set(true);
-		 *	s2.Set(true);
-		 *} else if (jsE.GetRawButton(4)) {
-		 *	s1.Set(false);
-		 *	s2.Set(false);
-		 *}
-		 */
+
+		 if (jsE.GetRawButton(3)) {
+			timer.Start();
+			timer.Reset();
+		 	s1.Set(true);
+		 	if (time >= 0) {
+		 		s2.Set(true);
+		 		timer.Stop();
+		 	}
+		 } else if (jsE.GetRawButton(4)) {
+			 timer.Reset();
+			 timer.Start();
+			 s1.Set (false);
+			 if (time >= 0) {
+			 	s2.Set (false);
+			 	timer.Stop();
+			 }
+		 } else if (jsE.GetRawButton(5)) {
+			 timer.Reset();
+			 timer.Start();
+			 s1.Set (false);
+			 if (time >= 0) {
+			 	s2.Set(true);
+			  	timer.Stop();
+			  }
+		 } else if (jsE.GetRawButton(6)) {
+			 timer.Reset();
+			 timer.Start();
+			 s1.Set (true);
+			 if (time >= 0) {
+			 	s2.Set(false);
+			  	timer.Stop();
+			  }
+		 }
+	}
+
+	void Random() {
+		if (jsE.GetRawButton(1)) {
+			SolenoidIntake.Set(true);
+		} else if (jsE.GetRawButton(2)) {
+			SolenoidIntake.Set(false);
+		}
 	}
 
 	void PID() {
+		float shootSpeed = talS1.Get();
 		talS1.SetControlMode(CANSpeedController::kSpeed);
 		talS1.SetFeedbackDevice(CANTalon::QuadEncoder);
 
-		if (jsE.GetRawButton(1)) {
+		if (jsE.GetRawButton(7)) {
 			talS1.SetPID(1.0, 0.0, 0.0, 0.0);
-			//talS2.Set(talS1.Get());
+			talS2.Set(shootSpeed);
 		}
 	}
 
 	void Gearshift() {
 		int gearshift = -3;
 
-		if (this->jsL.GetRawButton(2)) { //Close
-			this->ds1.Set(DoubleSolenoid::kForward);
+		if (jsL.GetRawButton(2)) { //Close
+			ds1.Set(DoubleSolenoid::kForward);
 			gearshift = 1;
 			printf( "{%d},\n", gearshift);
-		} else if (this->jsL.GetRawButton(3)) { //Open
-			this->ds1.Set(DoubleSolenoid::kReverse);
+		} else if (jsL.GetRawButton(3)) { //Open
+			ds1.Set(DoubleSolenoid::kReverse);
 			gearshift = -1;
 			printf( "{%d},\n", gearshift);
 		} else {
-			this->ds1.Set(DoubleSolenoid::kOff);
+			ds1.Set(DoubleSolenoid::kOff);
 			printf( "{%d},\n", gearshift);
 		}
 
-		if (this->jsL.GetRawButton(2)) {
-			this->ds2.Set(DoubleSolenoid::kForward);
-		} else if (this->jsL.GetRawButton(3)) {
-			this->ds2.Set(DoubleSolenoid::kReverse);
+		if (jsL.GetRawButton(2)) {
+			ds2.Set(DoubleSolenoid::kForward);
+		} else if (jsL.GetRawButton(3)) {
+			ds2.Set(DoubleSolenoid::kReverse);
 		} else {
-			this->ds2.Set(DoubleSolenoid::kOff);
+			ds2.Set(DoubleSolenoid::kOff);
 		}
 	}
 
@@ -175,7 +250,9 @@ private:
 
 	void TeleopPeriodic() {
 		//printf("Hello!,\n");
-		double lcount = this->lenc.GetDistance();
+		talS1.SetFeedbackDevice(CANTalon::QuadEncoder);
+		double lcount = talS1.GetEncPosition();
+		//double lcount = this->lenc.GetDistance();
 		if (lcount != lastCountl) {
 			printf("{%.2f},\n", lcount);
 		}
@@ -189,10 +266,9 @@ private:
 
 		Drive();
 		Gearshift();
-		//PID();
+		Random();
+		PID();
 		Shooter();
-
-		//gearshift code
 
 	}
 
