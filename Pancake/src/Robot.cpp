@@ -30,21 +30,21 @@ class Robot: public IterativeRobot  {
 	std::shared_ptr<NetworkTable> table;
 	AHRS *ahrs;
 	LiveWindow *lw;
+	DigitalInput limitSwitchA;
+	DigitalInput limitSwitchB;
 	int autoLoopCounter;
-
-	//DigitalInput diMinSwitch;
-	//PIDController spdcontrol;
 
 
 public:
 	Robot() :
 		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0),
 		vctR(5), vctL(2), talS1(4), talS2(2), talI1(0),
-		cps(), ds1(0, 1), ds2(2, 3), s1(2), s2(3), SolenoidIntake(4),
+		cps(), ds1(0, 0, 1), ds2(0, 2, 3), s1(1, 0), s2(1, 1), SolenoidIntake(1, 2),
 		lenc(0, 1, false, Encoder::EncodingType::k2X),
 		renc(2, 3, false, Encoder::EncodingType::k2X),
 		shooterenc(4, 5, false, Encoder::EncodingType::k2X),
-		table(NULL), ahrs(NULL), lw(NULL), autoLoopCounter(0){
+		table(NULL), ahrs(NULL), lw(NULL),
+		limitSwitchA(1), limitSwitchB(2), autoLoopCounter(0){
 	}
 
 private:
@@ -78,12 +78,12 @@ private:
 		shooterenc.SetReverseDirection(false);
 		shooterenc.SetSamplesToAverage(7);
 
-		table = NetWorkTable::GetTable("datatable");
+		table = NetworkTable::GetTable("datatable");
 		lw = LiveWindow::GetInstance();
 
 		try {
 			ahrs = new AHRS(I2C::Port::kOnboard);
-		} catch (std::eception ex ) {
+		} catch (std::exception ex ) {
 			std::string err_string = "Error instantiating gyro: ";
 			err_string += ex.what();
 			DriverStation::ReportError(err_string.c_str());
@@ -148,10 +148,10 @@ private:
 			while (shooterwheels < 1200) {
 				talS1.Set(-1);
 				talS2.Set(1);
-								if (shooterwheels > 200) {
-									s2.Set(true);
-								}
-							}
+				if (shooterwheels > 200) {
+					s2.Set(true);
+				}
+			}
 		} else if (index == 3) {
 		} else if (index == 4) {
 			if (rcount <= 4000 && lcount <= 4000) {
@@ -176,10 +176,6 @@ private:
 	void TeleopInit()
 	{
 		this->cps.Start();
-		printf( "HelloWorld!,\n");
-
-
-
 	}
 
 	void Drive() {
@@ -193,7 +189,9 @@ private:
 		vctL.Set(LeftMidWheelInput);
 	}
 
-	void Accelerometer() { /*
+	double lastCounta = 0;
+
+	void Accelerometer() {
 		if ( !ahrs ) return;
 
 		bool reset_yaw_button_pressed = DriverStation::GetInstance().GetStickButton(0,1);
@@ -224,7 +222,6 @@ private:
 		SmartDashboard::PutNumber(  "Displacement_X",       ahrs->GetDisplacementX() );
 		SmartDashboard::PutNumber(  "Displacement_Y",       ahrs->GetDisplacementY() );
 
-
 		SmartDashboard::PutNumber(  "RawGyro_X",            ahrs->GetRawGyroX());
 		SmartDashboard::PutNumber(  "RawGyro_Y",            ahrs->GetRawGyroY());
 		SmartDashboard::PutNumber(  "RawGyro_Z",            ahrs->GetRawGyroZ());
@@ -240,33 +237,39 @@ private:
 		SmartDashboard::PutString(  "YawAxisDirection",     yaw_axis.up ? "Up" : "Down" );
 		SmartDashboard::PutNumber(  "YawAxis",              yaw_axis.board_axis );
 
-		/* Sensor Board Information                                                 */
-		SmartDashboard::PutString(  "FirmwareVersion",      ahrs->GetFirmwareVersion());
+		double accel = ahrs->GetRawAccelX();
+		if (accel != lastCounta) {
+			printf("{%.2f},\n", accel);
+		}
+		lastCounta = accel;
 
-		/* Quaternion Data                                                          */
-		/* Quaternions are fascinating, and are the most compact representation of  */
-		/* orientation data.  All of the Yaw, Pitch and Roll Values can be derived  */
-		/* from the Quaternions.  If interested in motion processing, knowledge of  */
-		/* Quaternions is highly recommended.                                       */
-		SmartDashboard::PutNumber(  "QuaternionW",          ahrs->GetQuaternionW());
-		SmartDashboard::PutNumber(  "QuaternionX",          ahrs->GetQuaternionX());
-		SmartDashboard::PutNumber(  "QuaternionY",          ahrs->GetQuaternionY());
-		SmartDashboard::PutNumber(  "QuaternionZ",          ahrs->GetQuaternionZ());
-	*/}
+		if (ds1.Get() == DoubleSolenoid::kReverse) { //Close
+			if (abs(accel - lastCounta) < 0.005) {
+				ds1.Set(DoubleSolenoid::kForward);
+			}
+
+		}
+		double shift = ds1.Get();
+		printf("shift: %.2f \n", shift);
+	}
 
 	void Shooter() {
 		float time = timer.Get();
 		float shooterInput = 1 * jsE.GetY();
 		talI1.Set(shooterInput);
+		int limit = limitSwitchA.Get();
+		printf("limit: %d \n", limit);
 
 		 if (jsE.GetRawButton(3)) {
 			timer.Start();
 			timer.Reset();
-		 	s1.Set(true);
-		 	if (time >= 0) {
-		 		s2.Set(true);
-		 		timer.Stop();
-		 	}
+			if (limitSwitchA.Get() == 0) {
+				s1.Set(true);
+				if (time >= 0) {
+					s2.Set(true);
+					timer.Stop();
+				}
+			}
 		 } else if (jsE.GetRawButton(4)) {
 			 timer.Reset();
 			 timer.Start();
@@ -307,7 +310,7 @@ private:
 	void PID() {
 
 		if (jsE.GetRawButton(3)) {
-			talS1.Set(2000);
+			talS1.Set(5000);
 			talS2.Set(4);
 		}
 
@@ -357,7 +360,6 @@ private:
 	double lastCountr = -1;
 
 	void TeleopPeriodic() {
-		talS1.SetFeedbackDevice(CANTalon::QuadEncoder);
 		double lcount = lenc.GetDistance();
 		//double scount = talS1.GetEncPosition();
 		if (lcount != lastCountl) {
@@ -373,7 +375,8 @@ private:
 
 		Drive();
 		Gearshift();
-		Random();
+		//Accelerometer();
+		//Random();
 		PID();
 		Shooter();
 
