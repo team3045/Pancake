@@ -3,9 +3,7 @@
 #include "Commands/Command.h"
 #include "Commands/ExampleCommand.h"
 #include "CommandBase.h"
-
-
-
+#include "AHRS.h"
 
 
 class Robot: public IterativeRobot  {
@@ -29,36 +27,70 @@ class Robot: public IterativeRobot  {
 	Encoder renc;
 	Encoder shooterenc;
 	Timer timer;
+	std::shared_ptr<NetworkTable> table;
+	AHRS *ahrs;
+	LiveWindow *lw;
+	int autoLoopCounter;
+
 	//DigitalInput diMinSwitch;
 	//PIDController spdcontrol;
 
 
 public:
 	Robot() :
-		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0), vctR(5), vctL(2), talS1(1), talS2(2), talI1(0), cps(), ds1(0), ds2(1), s1(2), s2(3), SolenoidIntake(4), lenc(0, 1, false, Encoder::EncodingType::k2X),
-		renc(2, 3, false, Encoder::EncodingType::k2X), shooterenc(4, 5, false, Encoder::EncodingType::k2X){
+		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0),
+		vctR(5), vctL(2), talS1(4), talS2(2), talI1(0),
+		cps(), ds1(0, 1), ds2(2, 3), s1(2), s2(3), SolenoidIntake(4),
+		lenc(0, 1, false, Encoder::EncodingType::k2X),
+		renc(2, 3, false, Encoder::EncodingType::k2X),
+		shooterenc(4, 5, false, Encoder::EncodingType::k2X),
+		table(NULL), ahrs(NULL), lw(NULL), autoLoopCounter(0){
 	}
 
 private:
 	void RobotInit() {
-		//SmartDashboard::PutNumber("Encoder", -1);
+		talS1.SetControlMode(CANSpeedController::kSpeed);
+		talS1.SetFeedbackDevice(CANTalon::QuadEncoder);
+		talS1.SetPID(0.25, 0.01, 0.001, 1.0);
+
+		talS2.SetControlMode(CANSpeedController::kFollower);
+		talS2.SetClosedLoopOutputDirection(true);
+
+		talS1.EnableControl();
 		lenc.Reset();
 		lenc.SetMaxPeriod(.1);
 		lenc.SetMinRate(10);
 		lenc.SetDistancePerPulse(2.8125);
 		lenc.SetReverseDirection(false);
 		lenc.SetSamplesToAverage(7);
+
 		renc.Reset();
 		renc.SetMaxPeriod(.1);
 		renc.SetMinRate(10);
 		renc.SetDistancePerPulse(2.8125);
 		renc.SetReverseDirection(false);
 		renc.SetSamplesToAverage(7);
-		renc.SetMaxPeriod(.1);
-		renc.SetMinRate(10);
-		renc.SetDistancePerPulse(2.8125);
-		renc.SetReverseDirection(false);
-		renc.SetSamplesToAverage(7);
+
+		shooterenc.Reset();
+		shooterenc.SetMaxPeriod(.1);
+		shooterenc.SetMinRate(10);
+		shooterenc.SetDistancePerPulse(2.8125);
+		shooterenc.SetReverseDirection(false);
+		shooterenc.SetSamplesToAverage(7);
+
+		table = NetWorkTable::GetTable("datatable");
+		lw = LiveWindow::GetInstance();
+
+		try {
+			ahrs = new AHRS(I2C::Port::kOnboard);
+		} catch (std::eception ex ) {
+			std::string err_string = "Error instantiating gyro: ";
+			err_string += ex.what();
+			DriverStation::ReportError(err_string.c_str());
+		}
+		if ( ahrs ) {
+			LiveWindow::GetInstance()->AddSensor("IMU", "Gyro", ahrs);
+		}
 
 		SmartDashboard::PutBoolean("Autonomous 0", true);
 		SmartDashboard::PutBoolean("Autonomous 1", true);
@@ -101,7 +133,7 @@ private:
 				vctL.Set(1);
 			}
 		} else if (index == 1) {
-			if () {  //use vision code to define if statement
+			/*if () {  //use vision code to define if statement
 				s1.Set(true);
 				while (shooterwheels < 1200) {
 					talS1.Set(-1);
@@ -110,12 +142,12 @@ private:
 						s2.Set(true);
 					}
 				}
-			}
+			}*/
 		} else if (index == 2) {
 			s1.Set(true);
 			while (shooterwheels < 1200) {
 				talS1.Set(-1);
-				/talS2.Set(1);
+				talS2.Set(1);
 								if (shooterwheels > 200) {
 									s2.Set(true);
 								}
@@ -128,7 +160,7 @@ private:
 				vctR.Set(-1);
 				vctL.Set(1);
 			}
-			if () {  //use vision code to define if statement
+			/*if () {  //use vision code to define if statement
 				s1.Set(true);
 				while (shooterwheels < 1200) {
 					talS1.Set(-1);
@@ -137,7 +169,7 @@ private:
 						s2.Set(true);
 					}
 				}
-			}
+			}*/
 		}
 	}
 
@@ -160,6 +192,67 @@ private:
 		vctR.Set(-1 * RightMidWheelInput);
 		vctL.Set(LeftMidWheelInput);
 	}
+
+	void Accelerometer() { /*
+		if ( !ahrs ) return;
+
+		bool reset_yaw_button_pressed = DriverStation::GetInstance().GetStickButton(0,1);
+		if ( reset_yaw_button_pressed ) {
+		   ahrs->ZeroYaw();
+		}
+
+		SmartDashboard::PutNumber( "auto_LoopCounter1",     0);
+		SmartDashboard::PutBoolean( "IMU_Connected",        ahrs->IsConnected());
+		SmartDashboard::PutNumber(  "IMU_Yaw",              ahrs->GetYaw());
+		SmartDashboard::PutNumber(  "IMU_Pitch",            ahrs->GetPitch());
+		SmartDashboard::PutNumber(  "IMU_Roll",             ahrs->GetRoll());
+		SmartDashboard::PutNumber(  "IMU_CompassHeading",   ahrs->GetCompassHeading());
+		SmartDashboard::PutNumber(  "IMU_Update_Count",     ahrs->GetUpdateCount());
+		SmartDashboard::PutNumber(  "IMU_Byte_Count",       ahrs->GetByteCount());
+
+		SmartDashboard::PutNumber(  "IMU_TotalYaw",         ahrs->GetAngle());
+		SmartDashboard::PutNumber(  "IMU_YawRateDPS",       ahrs->GetRate());
+
+		SmartDashboard::PutNumber(  "IMU_Accel_X",          ahrs->GetWorldLinearAccelX());
+		SmartDashboard::PutNumber(  "IMU_Accel_Y",          ahrs->GetWorldLinearAccelY());
+		SmartDashboard::PutBoolean( "IMU_IsMoving",         ahrs->IsMoving());
+		SmartDashboard::PutNumber(  "IMU_Temp_C",           ahrs->GetTempC());
+		SmartDashboard::PutBoolean( "IMU_IsCalibrating",    ahrs->IsCalibrating());
+
+		SmartDashboard::PutNumber(  "Velocity_X",           ahrs->GetVelocityX() );
+		SmartDashboard::PutNumber(  "Velocity_Y",           ahrs->GetVelocityY() );
+		SmartDashboard::PutNumber(  "Displacement_X",       ahrs->GetDisplacementX() );
+		SmartDashboard::PutNumber(  "Displacement_Y",       ahrs->GetDisplacementY() );
+
+
+		SmartDashboard::PutNumber(  "RawGyro_X",            ahrs->GetRawGyroX());
+		SmartDashboard::PutNumber(  "RawGyro_Y",            ahrs->GetRawGyroY());
+		SmartDashboard::PutNumber(  "RawGyro_Z",            ahrs->GetRawGyroZ());
+		SmartDashboard::PutNumber(  "RawAccel_X",           ahrs->GetRawAccelX());
+		SmartDashboard::PutNumber(  "RawAccel_Y",           ahrs->GetRawAccelY());
+		SmartDashboard::PutNumber(  "RawAccel_Z",           ahrs->GetRawAccelZ());
+		SmartDashboard::PutNumber(  "RawMag_X",             ahrs->GetRawMagX());
+		SmartDashboard::PutNumber(  "RawMag_Y",             ahrs->GetRawMagY());
+		SmartDashboard::PutNumber(  "RawMag_Z",             ahrs->GetRawMagZ());
+		SmartDashboard::PutNumber(  "IMU_Temp_C",           ahrs->GetTempC());
+
+		AHRS::BoardYawAxis yaw_axis = ahrs->GetBoardYawAxis();
+		SmartDashboard::PutString(  "YawAxisDirection",     yaw_axis.up ? "Up" : "Down" );
+		SmartDashboard::PutNumber(  "YawAxis",              yaw_axis.board_axis );
+
+		/* Sensor Board Information                                                 */
+		SmartDashboard::PutString(  "FirmwareVersion",      ahrs->GetFirmwareVersion());
+
+		/* Quaternion Data                                                          */
+		/* Quaternions are fascinating, and are the most compact representation of  */
+		/* orientation data.  All of the Yaw, Pitch and Roll Values can be derived  */
+		/* from the Quaternions.  If interested in motion processing, knowledge of  */
+		/* Quaternions is highly recommended.                                       */
+		SmartDashboard::PutNumber(  "QuaternionW",          ahrs->GetQuaternionW());
+		SmartDashboard::PutNumber(  "QuaternionX",          ahrs->GetQuaternionX());
+		SmartDashboard::PutNumber(  "QuaternionY",          ahrs->GetQuaternionY());
+		SmartDashboard::PutNumber(  "QuaternionZ",          ahrs->GetQuaternionZ());
+	*/}
 
 	void Shooter() {
 		float time = timer.Get();
@@ -202,21 +295,36 @@ private:
 	}
 
 	void Random() {
-		if (jsE.GetRawButton(1)) {
+		if (jsR.GetRawButton(3)) {
 			SolenoidIntake.Set(true);
-		} else if (jsE.GetRawButton(2)) {
+		} else if (jsR.GetRawButton(2)) {
 			SolenoidIntake.Set(false);
 		}
 	}
 
-	void PID() {
-		float shootSpeed = talS1.Get();
-		talS1.SetControlMode(CANSpeedController::kSpeed);
-		talS1.SetFeedbackDevice(CANTalon::QuadEncoder);
+	int loopCount;
 
-		if (jsE.GetRawButton(7)) {
-			talS1.SetPID(1.0, 0.0, 0.0, 0.0);
-			talS2.Set(shootSpeed);
+	void PID() {
+
+		if (jsE.GetRawButton(3)) {
+			talS1.Set(2000);
+			talS2.Set(4);
+		}
+
+		printf( "OperatorControl!\n");
+			loopCount = 0;
+			while (IsOperatorControl() && IsEnabled()) {
+				int encPosition = talS1.GetEncPosition();
+				float getX = talS1.Get(); // get speed, for example
+				int brakeEnabled = talS1.GetBrakeEnableDuringNeutral(); // 0 = disabled; nz = brake en
+				float outVolt = talS1.GetOutputVoltage(); //
+				int quadEncoderVelocity = talS1.GetEncVel();
+				if ((loopCount % 100) == 0) {
+
+				printf("eek pos: %d ; getX: %.2f ; brakeEnabled: %d ; quadEncoderVelocity: %d ; outVolt: %.2f \n",
+								encPosition, getX, brakeEnabled, quadEncoderVelocity, outVolt);
+			}
+			loopCount = loopCount + 1;
 		}
 	}
 
@@ -249,10 +357,9 @@ private:
 	double lastCountr = -1;
 
 	void TeleopPeriodic() {
-		//printf("Hello!,\n");
 		talS1.SetFeedbackDevice(CANTalon::QuadEncoder);
-		double lcount = talS1.GetEncPosition();
-		//double lcount = this->lenc.GetDistance();
+		double lcount = lenc.GetDistance();
+		//double scount = talS1.GetEncPosition();
 		if (lcount != lastCountl) {
 			printf("{%.2f},\n", lcount);
 		}
