@@ -1,29 +1,64 @@
-
 #include "WPILib.h"
 #include "Commands/Command.h"
 #include "Commands/ExampleCommand.h"
 #include "CommandBase.h"
 #include "AHRS.h"
 
+	// I/O Map
+	// Talons:
+	//    shooterControl CANTalon 1 // shooter CIM motor (with quadrature encoder)
+	//	  shooterFollow CANTalon 2 // shooter CIM motor (follower, without encoder)
+	//	  feeder CANTalon 0 // intake motor
+	//	  TBD CANTalon xxx // turret
+	// Joysticks:
+	//	jsE
+	//	jsL
+	//	jsR
+	// Victors:
+	//	robotDriveFront Victor PWM 0
+	//	robotDriveFront Victor PWM 3
+	//	robotDriveRear Victor PWM 1
+	//	robotDriveRear Victor PWM 4
+	//	midWheelRight Victor PWM 5
+	//  midWheelLeft Victor PWM 2
+	// Encoders:
+	//   leftdriveenc 0 1 // left hand of drive chassis
+	//   rightdriveenc 2 3 // right hand of drive chassis
+	//   shooterenc 4 5 // ? shooter encoder
+	// PCMs:
+	//	 0 : 12 volt
+	//	 1 : 24 volt
+	// Solenoids
+	//	bottomRamp Solenoid PCM 1 0
+	//	topRamp Solenoid PCM 1 1
+	//  SolenoidIntake Solenoid PCM 1 2
+	// DoubleSolenoids
+	//	leftShift DoubleSolenoid PCM 0 0 1
+	//	rightShift DoubleSolenoid PCM 0 2 3
+	// DIO
+	//	limitSwitchA DigitalInput 8
+	//	limitSwitchB DigitalInput 9
+
 class Robot: public IterativeRobot  {
-	RobotDrive rdF;
-	RobotDrive rdR;
+	RobotDrive robotDriveFront;
+	RobotDrive robotDriveRear;
 	Joystick jsE;
 	Joystick jsL;
 	Joystick jsR;
-	Victor vctR;
-	Victor vctL;
-	CANTalon talS1;
-	CANTalon talS2;
-	CANTalon talI1;
+	Victor midWheelRight;
+	Victor midWheelLeft;
+	CANTalon shooterControl;
+	CANTalon shooterFollow;
+	CANTalon feeder;
+	CANTalon turret;
 	Compressor cps;
-	DoubleSolenoid ds1;
-	DoubleSolenoid ds2;
-	Solenoid s1;
-	Solenoid s2;
+	DoubleSolenoid leftShift;
+	DoubleSolenoid rightShift;
+	Solenoid bottomRamp;
+	Solenoid topRamp;
 	Solenoid SolenoidIntake;
-	Encoder lenc;
-	Encoder renc;
+	Encoder leftdriveenc;
+	Encoder rightdriveenc;
 	Encoder shooterenc;
 	Timer timer;
 	std::shared_ptr<NetworkTable> table;
@@ -36,46 +71,48 @@ class Robot: public IterativeRobot  {
 
 public:
 	Robot() :
-		rdF(0, 3), rdR(1, 4), jsE(2), jsL(1), jsR(0),
-		vctR(5), vctL(2), talS1(1), talS2(2), talI1(0),
-		cps(), ds1(0, 0, 1), ds2(0, 2, 3), s1(1, 0), s2(1, 1), SolenoidIntake(1, 2),
-		lenc(0, 1, false, Encoder::EncodingType::k2X),
-		renc(2, 3, false, Encoder::EncodingType::k2X),
+		robotDriveFront(0, 3), robotDriveRear(1, 4), jsE(2), jsL(1), jsR(0),
+		midWheelRight(5), midWheelLeft(2), shooterControl(1), shooterFollow(2), feeder(0), turret(3),
+		cps(), leftShift(0, 0, 1), rightShift(0, 2, 3), bottomRamp(1, 0), topRamp(1, 1), SolenoidIntake(1, 2),
+		leftdriveenc(0, 1, false, Encoder::EncodingType::k2X),
+		rightdriveenc(2, 3, false, Encoder::EncodingType::k2X),
 		shooterenc(4, 5, false, Encoder::EncodingType::k2X),
 		table(NULL),
 		ahrs(NULL),
 		lw(NULL),
-		limitSwitchA(1), limitSwitchB(2), autoLoopCounter(0){
+		limitSwitchA(8), limitSwitchB(9), autoLoopCounter(0){
 	}
 
 private:
 	void RobotInit() {
-		talS1.SetControlMode(CANSpeedController::kPercentVbus);
-		//talS1.SetFeedbackDevice(CANTalon::QuadEncoder);
-		//talS1.ConfigEncoderCodesPerRev(20);
-		talS1.ConfigNeutralMode(CANSpeedController::NeutralMode::kNeutralMode_Brake);
-		talS1.Set(0);
+		shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
+		//shooterControl.SetFeedbackDevice(CANTalon::QuadEncoder);
+		//shooterControl.ConfigEncoderCodesPerRev(20);
+		shooterControl.ConfigNeutralMode(CANSpeedController::NeutralMode::kNeutralMode_Brake);
+		shooterControl.Set(0);
 
-		talS2.SetControlMode(CANSpeedController::kFollower);
-		talS2.SetClosedLoopOutputDirection(true);
-		talS2.ConfigNeutralMode(CANSpeedController::NeutralMode::kNeutralMode_Brake);
-		talS2.Set(1);
+		shooterFollow.SetControlMode(CANSpeedController::kFollower);
+		shooterFollow.SetClosedLoopOutputDirection(true);
+		shooterFollow.ConfigNeutralMode(CANSpeedController::NeutralMode::kNeutralMode_Brake);
+		shooterFollow.Set(1);
 
+		feeder.SetControlMode(CANSpeedController::kPercentVbus);
 
-		talI1.SetControlMode(CANSpeedController::kPercentVbus);
-		lenc.Reset();
-		lenc.SetMaxPeriod(.1);
-		lenc.SetMinRate(10);
-		lenc.SetDistancePerPulse(2.8125);
-		lenc.SetReverseDirection(false);
-		lenc.SetSamplesToAverage(7);
+		turret.SetControlMode(CANSpeedController::kPercentVbus);
 
-		renc.Reset();
-		renc.SetMaxPeriod(.1);
-		renc.SetMinRate(10);
-		renc.SetDistancePerPulse(2.8125);
-		renc.SetReverseDirection(false);
-		renc.SetSamplesToAverage(7);
+		leftdriveenc.Reset();
+		leftdriveenc.SetMaxPeriod(.1);
+		leftdriveenc.SetMinRate(10);
+		leftdriveenc.SetDistancePerPulse(2.8125);
+		leftdriveenc.SetReverseDirection(false);
+		leftdriveenc.SetSamplesToAverage(7);
+
+		rightdriveenc.Reset();
+		rightdriveenc.SetMaxPeriod(.1);
+		rightdriveenc.SetMinRate(10);
+		rightdriveenc.SetDistancePerPulse(2.8125);
+		rightdriveenc.SetReverseDirection(false);
+		rightdriveenc.SetSamplesToAverage(7);
 
 		shooterenc.Reset();
 		shooterenc.SetMaxPeriod(.1);
@@ -127,55 +164,84 @@ private:
 	void AutonomousPeriodic() {
 		float leftInput;
 		float rightInput;
-		double lcount = this->lenc.GetDistance();
-		double rcount = this->renc.GetDistance();
+		double lcount = this->leftdriveenc.GetDistance();
+		double rcount = this->rightdriveenc.GetDistance();
 		double shooterwheels = this->shooterenc.GetDistance();
 
 		if (index == 0) {
 			if (rcount <= 4000 && lcount <= 4000) {
-				rdF.SetLeftRightMotorOutputs(1, -1);
-				rdR.SetLeftRightMotorOutputs(1, -1);
-				vctR.Set(-1);
-				vctL.Set(1);
+				robotDriveFront.SetLeftRightMotorOutputs(1, -1);
+				robotDriveRear.SetLeftRightMotorOutputs(1, -1);
+				midWheelRight.Set(-1);
+				midWheelLeft.Set(1);
 			}
 		} else if (index == 1) {
-			/*if () {  //use vision code to define if statement
-				s1.Set(true);
-				while (shooterwheels < 1200) {
-					talS1.Set(-1);
-					talS2.Set(1);
-					if (shooterwheels > 200) {
-						s2.Set(true);
+			//if () {  //use vision code to define if statement
+				shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
+				float time = timer.Get();
+				bottomRamp.Set(false);
+				topRamp.Set(true);
+
+				timer.Reset();
+				timer.Start();
+				if (time < 2.0) {
+					shooterControl.Set(1);
+					if (0 < time < 2.0) {
+						bottomRamp.Set(true);
+						topRamp.Set(false);
 					}
 				}
-			}*/
 		} else if (index == 2) {
-			s1.Set(true);
-			while (shooterwheels < 1200) {
-				talS1.Set(-1);
-				talS2.Set(1);
-				if (shooterwheels > 200) {
-					s2.Set(true);
+			shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
+			float time = timer.Get();
+			bottomRamp.Set(false);
+			topRamp.Set(true);
+
+			timer.Reset();
+			timer.Start();
+			if (time < 2.0) {
+				shooterControl.Set(1);
+				if (0 < time < 2.0) {
+					bottomRamp.Set(true);
+					topRamp.Set(false);
 				}
 			}
 		} else if (index == 3) {
+			shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
+			float time = timer.Get();
+			bottomRamp.Set(false);
+			topRamp.Set(true);
+
+			timer.Reset();
+			timer.Start();
+			if (time < 2.0) {
+				shooterControl.Set(1);
+				if (0 < time < 2.0) {
+					bottomRamp.Set(true);
+					topRamp.Set(false);
+				}
+			}
 		} else if (index == 4) {
 			if (rcount <= 4000 && lcount <= 4000) {
-				rdF.SetLeftRightMotorOutputs(1, -1);
-				rdR.SetLeftRightMotorOutputs(1, -1);
-				vctR.Set(-1);
-				vctL.Set(1);
+				robotDriveFront.SetLeftRightMotorOutputs(1, -1);
+				robotDriveRear.SetLeftRightMotorOutputs(1, -1);
+				midWheelRight.Set(-1);
+				midWheelLeft.Set(1);
 			}
-			/*if () {  //use vision code to define if statement
-				s1.Set(true);
-				while (shooterwheels < 1200) {
-					talS1.Set(-1);
-					talS2.Set(1);
-					if (shooterwheels > 200) {
-						s2.Set(true);
-					}
+			shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
+			float time = timer.Get();
+			bottomRamp.Set(false);
+			topRamp.Set(true);
+
+			timer.Reset();
+			timer.Start();
+			if (time < 2.0) {
+				shooterControl.Set(1);
+				if (0 < time < 2.0) {
+					bottomRamp.Set(true);
+					topRamp.Set(false);
 				}
-			}*/
+			}
 		}
 	}
 
@@ -190,10 +256,10 @@ private:
 		float rightInput = 1 * jsR.GetY();
 		float RightMidWheelInput = 1 * jsR.GetY();
 		float LeftMidWheelInput = 1 * jsL.GetY();
-		rdF.SetLeftRightMotorOutputs(leftInput, rightInput);
-		rdR.SetLeftRightMotorOutputs(leftInput, rightInput);
-		vctR.Set(-1 * RightMidWheelInput);
-		vctL.Set(LeftMidWheelInput);
+		robotDriveFront.SetLeftRightMotorOutputs(leftInput, rightInput);
+		robotDriveRear.SetLeftRightMotorOutputs(leftInput, rightInput);
+		midWheelRight.Set(-1 * RightMidWheelInput);
+		midWheelLeft.Set(LeftMidWheelInput);
 	}
 
 	double lastCounta = 0;
@@ -253,14 +319,31 @@ private:
 		}
 		lastCounta = accel;
 
-		if (ds1.Get() == DoubleSolenoid::kReverse) { //Close
+		if (leftShift.Get() == DoubleSolenoid::kReverse) { //Close
 			if (abs(accel - lastCounta) < 0.005) {
-				ds1.Set(DoubleSolenoid::kForward);
+				leftShift.Set(DoubleSolenoid::kForward);
 			}
 
 		}
-		double shift = ds1.Get();
+		double shift = leftShift.Get();
 		printf("shift: %.2f \n", shift);*/
+	}
+
+	void Turret() {
+		if (jsE.GetX() > 0) {
+			turret.SetControlMode(CANSpeedController::kPercentVbus);
+			float turretInput = 1 * jsE.GetX();
+			turret.Set(turretInput);
+		} else if (jsE.GetX() == 0) {
+			if (jsE.GetRawButton(8)) {
+				turret.SetControlMode(CANSpeedController::kPosition);
+				turret.SetFeedbackDevice(CANTalon::CtreMagEncoder_Relative);
+				turret.SetClosedLoopOutputDirection(true);
+				turret.SetPID(0.30, 0.01, 0.001);
+				turret.SetEncPosition(0);
+				turret.SetPosition(0);
+			}
+		}
 	}
 
 	int lastswitch = 0;
@@ -271,36 +354,36 @@ private:
 		sw = limitSwitchA.Get();
 
 		if (sw == 1 && lastswitch == 0) {
-			s1.Set (true);
+			bottomRamp.Set (true);
 		}
 
 		if (jsR.GetRawButton(3)) {
-			talI1.Set(1);
+			feeder.Set(1);
 		} else if (jsR.GetRawButton(2)){
-			talI1.Set(-1);
+			feeder.Set(-1);
 		} else {
-			talI1.Set(0);
+			feeder.Set(0);
 		}
 
 
 		 if (jsE.GetRawButton(2)) {
-				s1.Set(false);
+				bottomRamp.Set(false);
 			//}
 		 } else {
-			 s1.Set (true);
+			 bottomRamp.Set (true);
 		 }
 		 if (jsE.GetRawButton(3)) {
-			 s2.Set(false);
+			 topRamp.Set(false);
 		 } else {
-		 	s2.Set(true);
+		 	topRamp.Set(true);
 		 }
 
 		 if (jsE.GetRawButton(1)) {
 			 timer.Reset();
 			 timer.Start();
-			 s1.Set(true);
+			 bottomRamp.Set(true);
 			 //if (time >= 0.05) {
-				 s2.Set(false);
+				 topRamp.Set(false);
 			 //}
 		 }
 
@@ -322,11 +405,11 @@ private:
 
 	void PID() {
 		if (jsE.GetRawButton(6)) {
-			talS1.SetControlMode(CANSpeedController::kSpeed);
-			talS1.SetFeedbackDevice(CANTalon::QuadEncoder);
-			talS1.SetPID(0.25, 0.01, 0.001, 1.0);
-			talS1.Set(5000.0);
-			//talS1.EnableControl();
+			shooterControl.SetControlMode(CANSpeedController::kSpeed);
+			shooterControl.SetFeedbackDevice(CANTalon::QuadEncoder);
+			shooterControl.SetPID(0.25, 0.01, 0.001, 1.0);
+			shooterControl.Set(5000.0);
+			//shooterControl.EnableControl();
 
 			if (fOn) {
 				printf("motoron \n");
@@ -335,9 +418,9 @@ private:
 			}
 		} else if (jsE.GetRawButton(7)) {
 			printf ("motoroff \n");
-			talS1.SetControlMode(CANSpeedController::kPercentVbus);
-			talS1.Set(0);
-			//talS1.EnableControl();
+			shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
+			shooterControl.Set(0);
+			//shooterControl.EnableControl();
 
 			if (fOff) {
 				printf("motoron \n");
@@ -346,11 +429,11 @@ private:
 			}
 		}
 
-		int encPosition = talS1.GetEncPosition();
-		float getX = talS1.Get(); // get speed, for example
-		int brakeEnabled = talS1.GetBrakeEnableDuringNeutral(); // 0 = disabled; nz = brake en
-		float outVolt = talS1.GetOutputVoltage(); //
-		int quadEncoderVelocity = talS1.GetEncVel();
+		int encPosition = shooterControl.GetEncPosition();
+		float getX = shooterControl.Get(); // get speed, for example
+		int brakeEnabled = shooterControl.GetBrakeEnableDuringNeutral(); // 0 = disabled; nz = brake en
+		float outVolt = shooterControl.GetOutputVoltage(); //
+		int quadEncoderVelocity = shooterControl.GetEncVel();
 
 		if ((loopCount % 100) == 0) {
 			printf("loopCount %d ;  pos: %d ; getX: %.2f ; brakeEnabled: %d ; quadEncoderVelocity: %d ; outVolt: %.2f \n",
@@ -360,27 +443,15 @@ private:
 	}
 
 	void Gearshift() {
-		//int gearshift = -3;
-
 		if (jsL.GetRawButton(2)) { //Close
-			ds1.Set(DoubleSolenoid::kForward);
-			gearshift = 1;
-			//printf( "{%d},\n", gearshift);
+			leftShift.Set(DoubleSolenoid::kForward);
+			rightShift.Set(DoubleSolenoid::kForward);
 		} else if (jsL.GetRawButton(3)) { //Open
-			ds1.Set(DoubleSolenoid::kReverse);
-			gearshift = -1;
-			//printf( "{%d},\n", gearshift);
+			leftShift.Set(DoubleSolenoid::kReverse);
+			rightShift.Set(DoubleSolenoid::kReverse);
 		} else {
-			ds1.Set(DoubleSolenoid::kOff);
-			//printf( "{%d},\n", gearshift);
-		}
-
-		if (jsL.GetRawButton(2)) {
-			ds2.Set(DoubleSolenoid::kForward);
-		} else if (jsL.GetRawButton(3)) {
-			ds2.Set(DoubleSolenoid::kReverse);
-		} else {
-			ds2.Set(DoubleSolenoid::kOff);
+			leftShift.Set(DoubleSolenoid::kOff);
+			rightShift.Set(DoubleSolenoid::kOff);
 		}
 	}
 
@@ -388,14 +459,14 @@ private:
 	double lastCountr = -1;
 
 	void TeleopPeriodic() {
-		double lcount = lenc.GetDistance();
-		//double scount = talS1.GetEncPosition();
+		double lcount = leftdriveenc.GetDistance();
+		//double scount = shooterControl.GetEncPosition();
 		if (lcount != lastCountl) {
 			printf("{%.2f},\n", lcount);
 		}
 		lastCountl = lcount;
 
-		double rcount = renc.GetDistance();
+		double rcount = rightdriveenc.GetDistance();
 		if (rcount != lastCountr) {
 			printf("{%.2f},\n", rcount);
 		}
