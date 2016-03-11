@@ -56,7 +56,7 @@ class Robot: public IterativeRobot  {
 	DoubleSolenoid rightShift;
 	Solenoid bottomRamp;
 	Solenoid topRamp;
-	Solenoid SolenoidIntake;
+	DoubleSolenoid SolenoidIntake;
 	Encoder leftdriveenc;
 	Encoder rightdriveenc;
 	Encoder shooterenc;
@@ -72,8 +72,8 @@ class Robot: public IterativeRobot  {
 public:
 	Robot() :
 		robotDriveFront(0, 3), robotDriveRear(1, 4), jsE(2), jsL(1), jsR(0),
-		midWheelRight(5), midWheelLeft(2), shooterControl(1), shooterFollow(2), feeder(0), turret(3),
-		cps(), leftShift(0, 0, 1), rightShift(0, 2, 3), bottomRamp(1, 0), topRamp(1, 1), SolenoidIntake(1, 2),
+		midWheelRight(5), midWheelLeft(2), shooterControl(1), shooterFollow(3), feeder(0), turret(2),
+		cps(), leftShift(0, 0, 1), rightShift(0, 2, 3), bottomRamp(1, 0), topRamp(1, 1), SolenoidIntake(0, 4, 5),
 		leftdriveenc(0, 1, false, Encoder::EncodingType::k2X),
 		rightdriveenc(2, 3, false, Encoder::EncodingType::k2X),
 		shooterenc(4, 5, false, Encoder::EncodingType::k2X),
@@ -92,7 +92,7 @@ private:
 		shooterControl.Set(0);
 
 		shooterFollow.SetControlMode(CANSpeedController::kFollower);
-		shooterFollow.SetClosedLoopOutputDirection(true);
+		//shooterFollow.SetClosedLoopOutputDirection(true);
 		shooterFollow.ConfigNeutralMode(CANSpeedController::NeutralMode::kNeutralMode_Brake);
 		shooterFollow.Set(1);
 
@@ -124,6 +124,7 @@ private:
 		table = NetworkTable::GetTable("datatable");
 		lw = LiveWindow::GetInstance();
 
+		system("/home/lvuser/grip &");
 		/*try {
 			ahrs = new AHRS(I2C::Port::kOnboard);
 		} catch (std::exception ex ) {
@@ -168,6 +169,12 @@ private:
 		double rcount = this->rightdriveenc.GetDistance();
 		double shooterwheels = this->shooterenc.GetDistance();
 
+		auto grip = NetworkTable::GetTable("grip");
+
+		auto Xcenter = grip->GetNumberArray("ContoursReport/centerX", 1);
+		auto Ycenter = grip->GetNumberArray("ContoursReport/centerY", 1);
+
+
 		if (index == 0) {
 			if (rcount <= 4000 && lcount <= 4000) {
 				robotDriveFront.SetLeftRightMotorOutputs(1, -1);
@@ -176,6 +183,9 @@ private:
 				midWheelLeft.Set(1);
 			}
 		} else if (index == 1) {
+			int TurnRatio;
+			TurnRatio = ((Xcenter[1])/(240));
+
 			//if () {  //use vision code to define if statement
 				shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
 				float time = timer.Get();
@@ -330,12 +340,12 @@ private:
 	}
 
 	void Turret() {
-		if (jsE.GetX() > 0) {
+		//if (jsE.GetX() > 0) {
 			turret.SetControlMode(CANSpeedController::kPercentVbus);
-			float turretInput = 1 * jsE.GetX();
+			float turretInput = (0.10) * jsE.GetY();
 			turret.Set(turretInput);
-		} else if (jsE.GetX() == 0) {
-			if (jsE.GetRawButton(8)) {
+		//} else if (jsE.GetX() == 0) {
+			if (jsE.GetRawButton(4)) {
 				turret.SetControlMode(CANSpeedController::kPosition);
 				turret.SetFeedbackDevice(CANTalon::CtreMagEncoder_Relative);
 				turret.SetClosedLoopOutputDirection(true);
@@ -343,8 +353,9 @@ private:
 				turret.SetEncPosition(0);
 				turret.SetPosition(0);
 			}
-		}
+		//}
 	}
+
 
 	int lastswitch = 0;
 	int sw = 0;
@@ -391,10 +402,12 @@ private:
 	}
 
 	void Random() {
-		if (jsR.GetRawButton(3)) {
-			SolenoidIntake.Set(true);
-		} else if (jsR.GetRawButton(2)) {
-			SolenoidIntake.Set(false);
+		if (jsE.GetRawButton(8)) {
+			SolenoidIntake.Set(DoubleSolenoid::kForward);
+		} else if (jsE.GetRawButton(9)) {
+			SolenoidIntake.Set(DoubleSolenoid::kReverse);
+		} else {
+			SolenoidIntake.Set(DoubleSolenoid::kOff);
 		}
 	}
 
@@ -409,6 +422,9 @@ private:
 			shooterControl.SetFeedbackDevice(CANTalon::QuadEncoder);
 			shooterControl.SetPID(0.25, 0.01, 0.001, 1.0);
 			shooterControl.Set(5000.0);
+			feeder.Set(-1);
+			//shooterFollow.SetControlMode(CANSpeedController::kPercentVbus);
+			//shooterFollow.Set(1);
 			//shooterControl.EnableControl();
 
 			if (fOn) {
@@ -420,6 +436,9 @@ private:
 			printf ("motoroff \n");
 			shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
 			shooterControl.Set(0);
+			feeder.Set(0);
+			//shooterFollow.SetControlMode(CANSpeedController::kPercentVbus);
+			//shooterFollow.Set(0);
 			//shooterControl.EnableControl();
 
 			if (fOff) {
@@ -475,7 +494,8 @@ private:
 		this->Drive();
 		this->Gearshift();
 		//Accelerometer();
-		//this->Random();
+		this->Turret();
+		this->Random();
 		this->PID();
 		this->Shooter();
 
