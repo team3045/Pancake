@@ -281,7 +281,15 @@ private:
 		if ( reset_yaw_button_pressed ) {
 		   ahrs->ZeroYaw();
 		}
-/*
+
+		SmartDashboard::PutBoolean( "IMU_Connected",        ahrs->IsConnected());
+
+		SmartDashboard::PutNumber(  "IMU_Yaw",              ahrs->GetYaw());
+
+		SmartDashboard::PutNumber(  "Displacement_X",       ahrs->GetDisplacementX() );
+		SmartDashboard::PutNumber(  "Displacement_Y",       ahrs->GetDisplacementY() );
+
+		/*
 		SmartDashboard::PutNumber( "auto_LoopCounter1",     0);
 		SmartDashboard::PutBoolean( "IMU_Connected",        ahrs->IsConnected());
 		SmartDashboard::PutNumber(  "IMU_Yaw",              ahrs->GetYaw());
@@ -450,9 +458,13 @@ private:
 
 		int encPosition = shooterControl.GetEncPosition();
 		float getX = shooterControl.Get(); // get speed, for example
+
 		int brakeEnabled = shooterControl.GetBrakeEnableDuringNeutral(); // 0 = disabled; nz = brake en
 		float outVolt = shooterControl.GetOutputVoltage(); //
 		int quadEncoderVelocity = shooterControl.GetEncVel();
+
+		SmartDashboard::PutNumber(  "Shooter Volts",              outVolt);
+		SmartDashboard::PutNumber(  "Shooter Speed",              getX);
 
 		if ((loopCount % 100) == 0) {
 			printf("loopCount %d ;  pos: %d ; getX: %.2f ; brakeEnabled: %d ; quadEncoderVelocity: %d ; outVolt: %.2f \n",
