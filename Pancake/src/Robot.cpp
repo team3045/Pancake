@@ -59,9 +59,9 @@ class Robot: public IterativeRobot  {
 	Compressor cps;
 	DoubleSolenoid leftShift;
 	DoubleSolenoid rightShift;
+	DoubleSolenoid SolenoidIntake;
 	Solenoid bottomRamp;
 	Solenoid topRamp;
-	DoubleSolenoid SolenoidIntake;
 	Encoder leftdriveenc;
 	Encoder rightdriveenc;
 	Encoder shooterenc;
@@ -78,7 +78,7 @@ public:
 	Robot() :
 		v0(0), v1(1), v3(3), v4(4), robotDriveFront(v0, v3), robotDriveRear(v1, v4), jsE(2), jsL(1), jsR(0),
 		midWheelRight(5), midWheelLeft(2), shooterControl(1), shooterFollow(3), feeder(0), turret(2), feeder2(5),
-		cps(), leftShift(0, 0, 1), rightShift(0, 2, 3), bottomRamp(1, 1), topRamp(1, 0), SolenoidIntake(0, 4, 5),
+		cps(), leftShift(0, 0, 1), rightShift(0, 2, 3), SolenoidIntake (0, 4, 5), bottomRamp(1, 1), topRamp(1, 0),
 		leftdriveenc(0, 1, false, Encoder::EncodingType::k2X),
 		rightdriveenc(2, 3, false, Encoder::EncodingType::k2X),
 		shooterenc(4, 5, false, Encoder::EncodingType::k2X),
@@ -90,22 +90,26 @@ public:
 
 private:
 	void RobotInit() {
+		//Initializes control motor of shooter to voltage mode
 		shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
 		//shooterControl.SetFeedbackDevice(CANTalon::QuadEncoder);
 		//shooterControl.ConfigEncoderCodesPerRev(20);
 		shooterControl.ConfigNeutralMode(CANSpeedController::NeutralMode::kNeutralMode_Brake);
 		shooterControl.Set(0);
 
+		//Initializes follow motor of shooter to follow mode
 		shooterFollow.SetControlMode(CANSpeedController::kFollower);
 		//shooterFollow.SetClosedLoopOutputDirection(true);
 		shooterFollow.ConfigNeutralMode(CANSpeedController::NeutralMode::kNeutralMode_Brake);
 		shooterFollow.Set(1);
 
+		//Initializes feeder motors to voltagge mode
 		feeder.SetControlMode(CANSpeedController::kPercentVbus);
 		feeder2.SetControlMode(CANSpeedController::kPercentVbus);
 
 		turret.SetControlMode(CANSpeedController::kPercentVbus);
 
+		//Initializes gearbox encoder on left side of drive train
 		leftdriveenc.Reset();
 		leftdriveenc.SetMaxPeriod(.1);
 		leftdriveenc.SetMinRate(10);
@@ -113,6 +117,7 @@ private:
 		leftdriveenc.SetReverseDirection(false);
 		leftdriveenc.SetSamplesToAverage(7);
 
+		//Initializes gearbox encoder on right side of drive train
 		rightdriveenc.Reset();
 		rightdriveenc.SetMaxPeriod(.1);
 		rightdriveenc.SetMinRate(10);
@@ -120,6 +125,7 @@ private:
 		rightdriveenc.SetReverseDirection(false);
 		rightdriveenc.SetSamplesToAverage(7);
 
+		//Initializes encoder on control motor of shooter
 		shooterenc.Reset();
 		shooterenc.SetMaxPeriod(.1);
 		shooterenc.SetMinRate(10);
@@ -141,7 +147,7 @@ private:
 		if ( ahrs ) {
 			LiveWindow::GetInstance()->AddSensor("IMU", "Gyro", ahrs);
 		}*/
-
+		//sets up Autonomous Control
 		SmartDashboard::PutBoolean("Autonomous 0", true);
 		SmartDashboard::PutBoolean("Autonomous 1", false);
 		SmartDashboard::PutBoolean("Autonomous 2", false);
@@ -184,7 +190,6 @@ private:
 
 		double lcount = this->leftdriveenc.GetDistance();
 		double rcount = this->rightdriveenc.GetDistance();
-		double shooterwheels = this->shooterenc.GetDistance();
 
 		auto grip = NetworkTable::GetTable("grip");
 
@@ -195,7 +200,7 @@ private:
 
 		if (index == 0) {
 			// MPH - is the gearshift default correct for autonomous?
-			float leftInput = -0.37;
+			float leftInput = -0.37; //EGH - sets left and right voltage input of drive train
 			float rightInput = -0.37;
 			leftdriveenc.Reset();
 			rightdriveenc.Reset();
@@ -203,9 +208,9 @@ private:
 				robotDriveFront.SetLeftRightMotorOutputs(leftInput, rightInput); // MPH - maybe 0.25, 0.25 ? why is Right negative?  it's positive on TeleOp?
 				robotDriveRear.SetLeftRightMotorOutputs(leftInput, rightInput); // maybe 0.25, 0.25 ? why is Right negative?  it's positive on TeleOp?
 				midWheelLeft.Set(leftInput);
-				midWheelRight.Set(-1 * rightInput); // -1 * ? (-1 * -1 * 0.25?) // maybe -0.25 ? - why is midWheel INVERTED on Right but not on Left?
+				midWheelRight.Set(-1 * rightInput); // EGH - midWheelRight victor is inverted - sets value inverted
 			} else {
-				robotDriveFront.SetLeftRightMotorOutputs(0, 0);
+				robotDriveFront.SetLeftRightMotorOutputs(0, 0); //stops robot
 				robotDriveRear.SetLeftRightMotorOutputs(0, 0);
 				midWheelLeft.Set(0);
 				midWheelRight.Set(0);
@@ -289,7 +294,7 @@ private:
 
 	void TeleopInit()
 	{
-		this->cps.Start();
+		this->cps.Start(); //starts compressor for rest of teleop - IMPORTANT
 	}
 
 	//	front L 0
@@ -300,95 +305,22 @@ private:
 	//	mid R 5 (why -1 * ?) // MPH?
 	void Drive() {
 		//printf("Drive\n");
-		float leftInput = 1 * jsL.GetY();
+		float leftInput = 1 * jsL.GetY(); //Gets joystick input for tank drive
 		float rightInput = 1 * jsR.GetY();
 		float LeftMidWheelInput = 1 * jsL.GetY();
 		float RightMidWheelInput = 1 * jsR.GetY();
-		robotDriveFront.SetLeftRightMotorOutputs(leftInput, rightInput);
+		robotDriveFront.SetLeftRightMotorOutputs(leftInput, rightInput); //sets right and left front of drive train to joystick input value
 		robotDriveRear.SetLeftRightMotorOutputs(leftInput, rightInput);
 		midWheelLeft.Set(LeftMidWheelInput);
-		midWheelRight.Set(-1 * RightMidWheelInput); // why inverted - MPH?
+		midWheelRight.Set(-1 * RightMidWheelInput); // RightMidWheelInput victor inverted - (-1) sets the output value equivalent to rightInput
 	}
 
 	double lastCounta = 0;
 
-	void Accelerometer() {
-		if ( !ahrs ) return;
-
-		bool reset_yaw_button_pressed = DriverStation::GetInstance().GetStickButton(0,1);
-		if ( reset_yaw_button_pressed ) {
-		   ahrs->ZeroYaw();
-		}
-
-		SmartDashboard::PutBoolean( "IMU_Connected",        ahrs->IsConnected());
-
-		SmartDashboard::PutNumber(  "IMU_Yaw",              ahrs->GetYaw());
-
-		SmartDashboard::PutNumber(  "Displacement_X",       ahrs->GetDisplacementX() );
-		SmartDashboard::PutNumber(  "Displacement_Y",       ahrs->GetDisplacementY() );
-
-		/*
-		SmartDashboard::PutNumber( "auto_LoopCounter1",     0);
-		SmartDashboard::PutBoolean( "IMU_Connected",        ahrs->IsConnected());
-		SmartDashboard::PutNumber(  "IMU_Yaw",              ahrs->GetYaw());
-		SmartDashboard::PutNumber(  "IMU_Pitch",            ahrs->GetPitch());
-		SmartDashboard::PutNumber(  "IMU_Roll",             ahrs->GetRoll());
-		SmartDashboard::PutNumber(  "IMU_CompassHeading",   ahrs->GetCompassHeading());
-		SmartDashboard::PutNumber(  "IMU_Update_Count",     ahrs->GetUpdateCount());
-		SmartDashboard::PutNumber(  "IMU_Byte_Count",       ahrs->GetByteCount());
-
-		SmartDashboard::PutNumber(  "IMU_TotalYaw",         ahrs->GetAngle());
-		SmartDashboard::PutNumber(  "IMU_YawRateDPS",       ahrs->GetRate());
-
-		SmartDashboard::PutNumber(  "IMU_Accel_X",          ahrs->GetWorldLinearAccelX());
-		SmartDashboard::PutNumber(  "IMU_Accel_Y",          ahrs->GetWorldLinearAccelY());
-		SmartDashboard::PutBoolean( "IMU_IsMoving",         ahrs->IsMoving());
-		SmartDashboard::PutNumber(  "IMU_Temp_C",           ahrs->GetTempC());
-		SmartDashboard::PutBoolean( "IMU_IsCalibrating",    ahrs->IsCalibrating());
-
-		SmartDashboard::PutNumber(  "Velocity_X",           ahrs->GetVelocityX() );
-		SmartDashboard::PutNumber(  "Velocity_Y",           ahrs->GetVelocityY() );
-		SmartDashboard::PutNumber(  "Displacement_X",       ahrs->GetDisplacementX() );
-		SmartDashboard::PutNumber(  "Displacement_Y",       ahrs->GetDisplacementY() );
-
-		SmartDashboard::PutNumber(  "RawGyro_X",            ahrs->GetRawGyroX());
-		SmartDashboard::PutNumber(  "RawGyro_Y",            ahrs->GetRawGyroY());
-		SmartDashboard::PutNumber(  "RawGyro_Z",            ahrs->GetRawGyroZ());
-		SmartDashboard::PutNumber(  "RawAccel_X",           ahrs->GetRawAccelX());
-		SmartDashboard::PutNumber(  "RawAccel_Y",           ahrs->GetRawAccelY());
-		SmartDashboard::PutNumber(  "RawAccel_Z",           ahrs->GetRawAccelZ());
-		SmartDashboard::PutNumber(  "RawMag_X",             ahrs->GetRawMagX());
-		SmartDashboard::PutNumber(  "RawMag_Y",             ahrs->GetRawMagY());
-		SmartDashboard::PutNumber(  "RawMag_Z",             ahrs->GetRawMagZ());
-		SmartDashboard::PutNumber(  "IMU_Temp_C",           ahrs->GetTempC());
-		*/
-
-		//AHRS::BoardYawAxis yaw_axis = ahrs->GetBoardYawAxis();
-		/*
-		SmartDashboard::PutString(  "YawAxisDirection",     yaw_axis.up ? "Up" : "Down" );
-		SmartDashboard::PutNumber(  "YawAxis",              yaw_axis.board_axis );
-		*/
-
-		/*double accel = ahrs->GetRawAccelX();
-		if (accel != lastCounta) {
-			printf("{%.2f},\n", accel);
-		}
-		lastCounta = accel;
-
-		if (leftShift.Get() == DoubleSolenoid::kReverse) { //Close
-			if (abs(accel - lastCounta) < 0.005) {
-				leftShift.Set(DoubleSolenoid::kForward);
-			}
-
-		}
-		double shift = leftShift.Get();
-		printf("shift: %.2f \n", shift);*/
-	}
-
 	void Turret() {
 		//if (jsE.GetX() > 0) {
 			turret.SetControlMode(CANSpeedController::kPercentVbus);
-			float turretInput = (0.10) * jsE.GetY();
+			float turretInput = (0.10) * jsE.GetX();
 			turret.Set(turretInput);
 		//} else if (jsE.GetX() == 0) {
 			if (jsE.GetRawButton(4)) {
@@ -406,39 +338,39 @@ private:
 	int lastswitch = 0;
 	int sw = 0;
 
-	void Shooter() {
+	void Shooter() { //
 		float time = timer.Get();
 		sw = limitSwitchA.Get();
 
 		if (sw == 1 && lastswitch == 0) {
 			bottomRamp.Set (true);
 		}
-
-		if (jsR.GetRawButton(2)) {
+		//runs feeder wheels
+		if (jsR.GetRawButton(2)) { //in
 			feeder.Set(1);
 			feeder2.Set(-1);
-		} else if (jsR.GetRawButton(3)){
+		} else if (jsR.GetRawButton(3)){  //out
 			feeder.Set(-1);
 			feeder2.Set(1);
-		} else {
+		} else { //stop
 			feeder.Set(0);
 			feeder2.Set(0);
 		}
 
 
-		 if (jsE.GetRawButton(2)) {
+		 if (jsE.GetRawButton(2)) { //bottom piston down
 				bottomRamp.Set(false);
 			//}
 		 } else {
-			 bottomRamp.Set (true);
+			 bottomRamp.Set (true); //bottom piston up
 		 }
-		 if (jsE.GetRawButton(3)) {
+		 if (jsE.GetRawButton(3)) { //top piston up
 			 topRamp.Set(false);
 		 } else {
-		 	topRamp.Set(true);
+		 	topRamp.Set(true); //top piston down
 		 }
 
-		 if (jsE.GetRawButton(1)) {
+		 if (jsE.GetRawButton(1)) { //triggers shooting - bottom ramp up and top ramp up
 			 timer.Reset();
 			 timer.Start();
 			 bottomRamp.Set(true);
@@ -450,23 +382,13 @@ private:
 		 lastswitch = sw;
 	}
 
-	void Random() {
-		if (jsE.GetRawButton(8)) {
-			SolenoidIntake.Set(DoubleSolenoid::kForward);
-		} else if (jsE.GetRawButton(9)) {
-			SolenoidIntake.Set(DoubleSolenoid::kReverse);
-		} else {
-			SolenoidIntake.Set(DoubleSolenoid::kOff);
-		}
-	}
-
 	int loopCount = 0;
 
 	bool fOn = true;
 	bool fOff = true;
 
 	void PID() {
-		if (jsE.GetRawButton(6)) {
+		if (jsE.GetRawButton(6)) { //runs shooter wheels at 5000 rpm using PID loop
 			shooterControl.SetControlMode(CANSpeedController::kSpeed);
 			shooterControl.SetFeedbackDevice(CANTalon::QuadEncoder);
 			shooterControl.SetPID(0.25, 0.01, 0.001, 1.0);
@@ -481,7 +403,7 @@ private:
 				fOn = false;
 				fOff = true;
 			}
-		} else if (jsE.GetRawButton(7)) {
+		} else if (jsE.GetRawButton(7)) { //stops shooter wheels - CAUTION: Voltage mode necessary to stop
 			printf ("motoroff \n");
 			shooterControl.SetControlMode(CANSpeedController::kPercentVbus);
 			shooterControl.Set(0);
@@ -515,7 +437,16 @@ private:
 		loopCount = loopCount + 1;
 	}
 
-	void Gearshift() {
+	void Random () { //drops feeder wheels
+		if (jsE.GetRawButton(8)) {
+			SolenoidIntake.Set(DoubleSolenoid::kForward);
+		} else if (jsE.GetRawButton(9)) {
+			SolenoidIntake.Set(DoubleSolenoid::kReverse);
+		} else {
+			SolenoidIntake.Set(DoubleSolenoid::kOff);
+		}
+	}
+	void Gearshift() { //drive train gearshift (high to low gear)
 		if (jsL.GetRawButton(2)) { //Close
 			leftShift.Set(DoubleSolenoid::kForward);
 			rightShift.Set(DoubleSolenoid::kForward);
@@ -544,13 +475,13 @@ private:
 		}
 		lastCountr = rcount;
 
-		this->Drive();
-		this->Gearshift();
+		this->Drive(); //starts drivetrain
+		this->Gearshift(); //starts gear shift
 		//Accelerometer();
-		this->Turret();
-		this->Random();
-		this->PID();
-		this->Shooter();
+		this->Turret(); //starts turret rotation
+		this->PID(); //starts shooter wheels
+		this->Random(); //starts feeder pneumatics
+		this->Shooter(); //starts feeder wheels and ramps
 
 	}
 
